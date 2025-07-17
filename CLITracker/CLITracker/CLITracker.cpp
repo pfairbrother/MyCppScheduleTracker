@@ -10,64 +10,76 @@ int main()
 {
     std::vector<Task> tasks;
     std::vector<Task> completeTasks;
+    int nextTaskId = 1;
 
     char select;
 
     do {
-        std::cout << "Welcome to the Task Tracker!\nPress 1 to view current tasks.\nPress 2 to view completed tasks\nPress 3 to add tasks.\nPress 4 to quit." << std::endl;
+        std::cout << "\n------------------------------------\n";
+        std::cout << "Welcome to the Task Tracker!\n------------------------------------\n\nPress 1 to view current tasks.\nPress 2 to view completed tasks\nPress 3 to add tasks.\nPress 4 to quit." << std::endl;
         std::cin >> select;
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
         if (select == '1') {
-            char choice;
-            do {
+
                 if (tasks.empty()) {
-                    std::cout << std::endl << "No tasks currently in list" << std::endl;
+                    std::cout << std::endl << "------------------------------------\nNo tasks currently in list\n------------------------------------" << std::endl;
                 }
                 else {
-                    char mark;
+                    int mark;
                     do {
                         std::cout << "\n--- Current Tasks ---" << std::endl;
                         for (size_t i = 0; i < tasks.size(); ++i) {
-                            std::cout << (i + 1) << ". " << "Description: " << tasks[i].description << ", Due Date:" << tasks[i].dueDate << std::endl;
+                            std::cout << tasks[i].taskID << ". " << "Description: " << tasks[i].description << ", Due Date:" << tasks[i].dueDate << std::endl;
                         }
                         std::cout << "------------------------------------" << std::endl;
-                        std::cout << "Input task number to mark complete. E to exit." << std::endl;
+                        std::cout << "\nInput task ID to select task. 0 to exit." << std::endl;
                         std::cin >> mark;
                         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                        if (mark >= '1' && mark <= '9') {
-                            int taskNumber = static_cast<int>(mark - '0') - 1;
-                            if (taskNumber >= 0 && taskNumber < tasks.size()) {
-                                completeTasks.push_back(tasks[taskNumber]);
-                                tasks.erase(tasks.begin() + taskNumber);
-                                std::cout << "Task Completed!" << std::endl;
+                        if (mark != 0) {
+                            size_t foundIndex = (size_t)-1;
+                            for (size_t i = 0; i < tasks.size(); ++i) {
+                                if (tasks[i].taskID == mark) {
+                                    foundIndex = i;
+                                    break;
+                                }
+                            }
+                            if (foundIndex == (size_t)-1) {
+                                std::cout << std::endl << "------------------------------------\nTask not found.\n------------------------------------" << std::endl;
                             }
                             else {
-                                std::cout << "Invalid Number. Try again." << std::endl;
+                                char action;
+                                std::cout << std::endl << "Task " << mark << " selected. Press M to mark complete, D to delete, U to update or R to return to selection." << std::endl;
+                                std::cin >> action;
+                                if (action == 'm' || action == 'M') {
+                                    completeTasks.push_back(tasks[foundIndex]);
+                                    tasks.erase(tasks.begin() + foundIndex);
+                                    std::cout << "\n------------------------------------\nTask Completed!\n------------------------------------" << std::endl;
+                                }
+                                else if (action == 'd' || action == 'D') {
+                                    tasks.erase(tasks.begin() + foundIndex);
+                                    std::cout << "\n------------------------------------\nTask Deleted!\n------------------------------------" << std::endl;
+                                }
+                                else if (action == 'u' || action == 'U') {
+                                    //ADD UPDATE ACTION HERE!!!!
+                                }
                             }
                         }
-                    } while (mark != 'e' && mark != 'E' && tasks.size() > 0);
+                    } while (mark != 0 && tasks.size() > 0);
                 }
-                std::cout << "Back to menu? (Y/N): " << std::endl;
-                std::cin >> choice;
-                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            }while (choice == 'n' || choice == 'N');
         }
         else if (select == '2') {
             char choice;
             if (completeTasks.empty()) {
-                std::cout << "No tasks completed.\n";
+                std::cout << "\n------------------------------------\nNo tasks completed.\n------------------------------------\n";
             }
             else {
                 std::cout << "\n--- Completed Tasks ---" << std::endl;
                 for (size_t i = 0; i < completeTasks.size(); ++i) {
-                    std::cout << (i + 1) << ". " << "Description: " << completeTasks[i].description << ", Due Date:" << completeTasks[i].dueDate << std::endl;
+                    std::cout << completeTasks[i].taskID << ". " << "Description: " << completeTasks[i].description << ", Due Date:" << completeTasks[i].dueDate << std::endl;
                 }
                 std::cout << "------------------------------------" << std::endl;
             }
-            std::cout << "Back to menu? (Y/N): " << std::endl;
-            std::cin >> choice;
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
         else if (select == '3') {
             char choice;
@@ -78,17 +90,19 @@ int main()
                 std::cout << std::endl << "Please enter a task description: " << std::endl;
                 std::getline(std::cin, tempDescription);
 
-                std::cout << "Please enter a due date (use YYYY-MM-DD): " << std::endl;
+                std::cout << "\nPlease enter a due date (use YYYY-MM-DD): " << std::endl;
                 std::cin >> tempDueDate;
                 std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
                 Task newTask;
+                newTask.taskID = nextTaskId++;
                 newTask.description = tempDescription;
                 newTask.dueDate = tempDueDate;
+                newTask.isComplete = false;
 
 
                 tasks.push_back(newTask);
-                std::cout << "Task added! Add another? (Y/N): ";
+                std::cout << "\nTask added! Add another? (Y/N): ";
                 std::cin >> choice;
                 std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
