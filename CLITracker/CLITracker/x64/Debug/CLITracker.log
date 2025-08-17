@@ -1,3 +1,2 @@
 ﻿  CLITracker.cpp
-C:\Users\fairb\source\repos\MyCppScheduleTracker\CLITracker\CLITracker\CLITracker.cpp(65,18): warning C4101: 'choice': unreferenced local variable
   CLITracker.vcxproj -> C:\Users\fairb\source\repos\MyCppScheduleTracker\CLITracker\x64\Debug\CLITracker.exe
