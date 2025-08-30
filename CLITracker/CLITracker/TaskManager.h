@@ -1,18 +1,19 @@
 #ifndef TASKMANAGER_H
 #define TASKMANAGER_H
-#include "Task.h"
-#include <vector>
 #include <string>
+#include "sqlite3.h"
 
 class TaskManager {
-private:
-	std::vector<Task> tasks;
-	std::vector<Task> completedTasks;
-	int nextTaskId;
-	size_t FindTaskID(int userTaskId, bool isComplete);
+private:                    
+	int CreateTable();
+	bool FindTaskID(int userTaskID);
+	sqlite3* db;
+
+	
 
 public:
 	TaskManager();
+	~TaskManager();
 	void AddTask(const std::string& userDesc, const std::string& userDueDate);
 	void UpdateTask(int userTaskId, const std::string& userDesc, const std::string& userDueDate);
 	void CompleteTask(int userTaskId);

@@ -1,108 +1,256 @@
 #include "TaskManager.h"
+#include "sqlite3.h"
 #include <iostream>
 
-TaskManager::TaskManager() : nextTaskId(1) {}
 
-size_t TaskManager::FindTaskID(int userTaskId, bool isComplete){
-	std::vector<Task>* taskListToSearch;
-	if (!isComplete)
-		taskListToSearch = &tasks;
-	else
-		taskListToSearch = &completedTasks;
 
-	for (size_t i = 0; i < taskListToSearch->size(); ++i){
-		if (taskListToSearch->at(i).taskID == userTaskId)
-			return i;
+int TaskManager::CreateTable(){
+	const char* sql =
+		"CREATE TABLE IF NOT EXISTS tasks("
+		"id INTEGER PRIMARY KEY AUTOINCREMENT,"
+		"description TEXT NOT NULL,"
+		"due_date TEXT NOT NULL,"
+		"is_complete INTEGER NOT NULL DEFAULT 0);";
+
+	char* errMsg = 0;
+	int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error: " << errMsg << std::endl;
+		sqlite3_free(errMsg);
+		return 1;
+	}
+	std::cout << "Tasks table created successfully." << std::endl;
+	return 0;
+}
+
+bool TaskManager::FindTaskID(int userTaskID)
+{
+	const char* sql = "SELECT id FROM tasks WHERE id = ?;";
+	sqlite3_stmt* stmt;
+
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error during prepare: " << sqlite3_errmsg(db) << std::endl;
+		return false;
 	}
 
-	return (size_t)-1;
+	rc = sqlite3_bind_int(stmt, 1, userTaskID);
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error during bind: " << sqlite3_errmsg(db) << std::endl;
+		sqlite3_finalize(stmt);
+		return false;
+	}
+
+	rc = sqlite3_step(stmt);
+	bool taskFound = (rc == SQLITE_ROW);
+
+	sqlite3_finalize(stmt);
+
+	return taskFound;
+}
+
+TaskManager::TaskManager() {
+	int rc = sqlite3_open("tasks.db", &db);
+
+	if (rc != SQLITE_OK) {
+		std::cerr << "Cannot open database: " << sqlite3_errmsg(db) << std::endl;
+		sqlite3_close(db);
+		db = nullptr;
+	}
+	else {
+		std::cout << "Database opened successfully." << std::endl;
+		if (CreateTable() != 0) {
+			std::cerr << "Failed to create tasks table." << std::endl;
+		}
+	}
+}
+
+TaskManager::~TaskManager() {
+	if (db)
+		sqlite3_close(db);
 }
 
 void TaskManager::AddTask(const std::string& userDesc, const std::string& userDueDate){
-	Task newTask;
-	newTask.taskID = nextTaskId++;
-	newTask.description = userDesc;
-	newTask.dueDate = userDueDate;
-	newTask.isComplete = false;
-	tasks.push_back(newTask);
+	const char* sql = "INSERT INTO tasks (description, due_date, is_complete) VALUES (?, ?, ?);";
+	sqlite3_stmt* stmt;
+
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error during prepare: " << sqlite3_errmsg(db) << std::endl;
+		return;
+	}
+	sqlite3_bind_text(stmt, 1, userDesc.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 2, userDueDate.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 3, 0);
+
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		std::cerr << "SQL error during step: " << sqlite3_errmsg(db) << std::endl;
+	}
+	else {
+		std::cout << "\n------------------------------------\nTask added!\n------------------------------------" << std::endl;
+	}
+
+	sqlite3_finalize(stmt);
 }
 
-void TaskManager::UpdateTask(int userTaskId, const std::string& userDesc, const std::string& userDueDate){
 
-	size_t foundIndex = FindTaskID(userTaskId, false);
+void TaskManager::UpdateTask(int userTaskId, const std::string& userDesc, const std::string& userDueDate)
+{
+	if (!FindTaskID(userTaskId)) {
+		std::cout << "\n------------------------------------\nTask not found.\n------------------------------------" << std::endl;
+		return;
+	}
 
-	if (foundIndex != (size_t)-1) {
-		Task& taskToUpdate = tasks.at(foundIndex);
-		taskToUpdate.description = userDesc;
-		taskToUpdate.dueDate = userDueDate;
+	const char* sql = "UPDATE tasks SET description = ?, due_date = ? WHERE id = ?;";
+	sqlite3_stmt* stmt;
+
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error during prepare: " << sqlite3_errmsg(db) << std::endl;
+		return;
+	}
+
+	sqlite3_bind_text(stmt, 1, userDesc.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 2, userDueDate.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 3, userTaskId);
+
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		std::cerr << "SQL error during step: " << sqlite3_errmsg(db) << std::endl;
+	}
+	else {
 		std::cout << "\n------------------------------------\nTask updated successfully!\n------------------------------------" << std::endl;
 	}
-	else
-		std::cout << "\n------------------------------------\nTask not found.\n------------------------------------" << std::endl;
+
+	sqlite3_finalize(stmt);
 }
 
 void TaskManager::CompleteTask(int userTaskId)
 {
-	size_t foundIndex = FindTaskID(userTaskId, false);
+	if (!FindTaskID(userTaskId)) {
+		std::cout << "\n------------------------------------\nTask not found.\n------------------------------------" << std::endl;
+		return;
+	}
 
-	if (foundIndex != (size_t)-1) {
-		completedTasks.push_back(tasks.at(foundIndex));
-		tasks.erase(tasks.begin() + foundIndex);
+	const char* sql = "UPDATE tasks SET is_complete = 1 WHERE id = ?;";
+	sqlite3_stmt* stmt;
+
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error during prepare: " << sqlite3_errmsg(db) << std::endl;
+		return;
+	}
+
+	sqlite3_bind_int(stmt, 1, userTaskId);
+
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		std::cerr << "SQL error during step: " << sqlite3_errmsg(db) << std::endl;
+	}
+	else {
 		std::cout << "\n------------------------------------\nTask Completed!\n------------------------------------" << std::endl;
 	}
-	else
-		std::cout << "\n------------------------------------\nTask not found.\n------------------------------------" << std::endl;
+
+	sqlite3_finalize(stmt);
 }
 
-void TaskManager::DeleteTask(int userTaskId){
+void TaskManager::DeleteTask(int userTaskId)
+{
+	if (!FindTaskID(userTaskId)) {
+		std::cout << "\n------------------------------------\nTask not found.\n------------------------------------" << std::endl;
+		return;
+	}
 
-	size_t foundIndex = FindTaskID(userTaskId, false);
+	const char* sql = "DELETE FROM tasks WHERE id = ?;";
+	sqlite3_stmt* stmt;
 
-	if (foundIndex != (size_t)-1) {
-		tasks.erase(tasks.begin() + foundIndex);
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error during prepare: " << sqlite3_errmsg(db) << std::endl;
+		return;
+	}
+
+	sqlite3_bind_int(stmt, 1, userTaskId);
+
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		std::cerr << "SQL error during step: " << sqlite3_errmsg(db) << std::endl;
+	}
+	else {
 		std::cout << "\n------------------------------------\nTask Deleted!\n------------------------------------" << std::endl;
 	}
-	else
-		std::cout << "\n------------------------------------\nTask not found.\n------------------------------------" << std::endl;
 
-	
+	sqlite3_finalize(stmt);
 }
 
-void TaskManager::EmptyCompletedTasks(){
-	completedTasks.clear();
-}
+void TaskManager::EmptyCompletedTasks() {
+	const char* sql = "DELETE FROM tasks WHERE is_complete = 1;";
+	char* errMsg = 0;
 
-void TaskManager::PrintAllTasks(bool isComplete) const{
-	const std::vector<Task>* taskList;
-	if (!isComplete) {
-		taskList = &tasks;
-		std::cout << "\n--- Current Tasks ---" << std::endl;
+	int rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error: " << errMsg << std::endl;
+		sqlite3_free(errMsg);
 	}
 	else {
-		taskList = &completedTasks;
-		std::cout << "\n--- Completed Tasks ---" << std::endl;
+		std::cout << "\n------------------------------------\nCompleted tasks list cleared!\n------------------------------------" << std::endl;
 	}
-	if(taskList->empty())
+}
+
+void TaskManager::PrintAllTasks(bool isComplete) const {
+	const char* sql = "SELECT id, description, due_date FROM tasks WHERE is_complete = ?;";
+	sqlite3_stmt* stmt;
+
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
+		std::cerr << "SQL error during prepare: " << sqlite3_errmsg(db) << std::endl;
+		return;
+	}
+
+	sqlite3_bind_int(stmt, 1, isComplete ? 1 : 0);
+
+	std::cout << (isComplete ? "\n--- Completed Tasks ---" : "\n--- Current Tasks ---") << std::endl;
+
+	int rowCount = 0;
+	while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+		rowCount++;
+		int taskId = sqlite3_column_int(stmt, 0);
+		const unsigned char* description = sqlite3_column_text(stmt, 1);
+		const unsigned char* dueDate = sqlite3_column_text(stmt, 2);
+
+		std::cout << taskId << ". " << "Description: " << description << ", Due Date:" << dueDate << std::endl;
+	}
+
+	if (rowCount == 0) {
 		std::cout << "No tasks in this list.\n" << std::endl;
+	}
 	else {
-		for (const Task& task : *taskList) {
-			std::cout << task.taskID << ". " << "Description: " << task.description << ", Due Date:" << task.dueDate << std::endl;
-		}
 		std::cout << "------------------------------------" << std::endl;
 	}
+
+	sqlite3_finalize(stmt);
 }
 
-bool TaskManager::ListEmpty(bool isComplete)
-{
-	const std::vector<Task>* listChecked;
-	if (!isComplete)
-		listChecked = &tasks;
-	else
-		listChecked = &completedTasks;
-	if (listChecked->empty())
+bool TaskManager::ListEmpty(bool isComplete) {
+	const char* sql = "SELECT COUNT(*) FROM tasks WHERE is_complete = ?;";
+	sqlite3_stmt* stmt;
+
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
 		return true;
-	else
-		return false;
+	}
+
+	sqlite3_bind_int(stmt, 1, isComplete ? 1 : 0);
+	sqlite3_step(stmt);
+
+	int count = sqlite3_column_int(stmt, 0);
+
+	sqlite3_finalize(stmt);
+
+	return (count == 0);
 }
 
 

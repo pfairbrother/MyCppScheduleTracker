@@ -124,10 +124,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CLITracker.cpp" />
+    <ClCompile Include="sqlite3.c" />
     <ClCompile Include="TaskManager.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Task.h" />
+    <ClInclude Include="sqlite3.h" />
     <ClInclude Include="TaskManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
